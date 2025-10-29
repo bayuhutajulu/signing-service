@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/bayuhutajulu/signing-service/crypto"
-	"github.com/bayuhutajulu/signing-service/domain"
+	model "github.com/bayuhutajulu/signing-service/model"
 )
 
-func createTestDevice(id, label, algorithm string) *domain.SignatureDevice {
+func createTestDevice(id, label, algorithm string) *model.SignatureDevice {
 	var signer crypto.Signer
 	var privateKey, publicKey interface{}
 
@@ -27,7 +27,7 @@ func createTestDevice(id, label, algorithm string) *domain.SignatureDevice {
 		publicKey = keyPair.Public
 	}
 
-	return &domain.SignatureDevice{
+	return &model.SignatureDevice{
 		ID:               id,
 		Label:            label,
 		Algorithm:        algorithm,

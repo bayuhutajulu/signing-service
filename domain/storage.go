@@ -1,8 +1,10 @@
 package domain
 
+import model "github.com/bayuhutajulu/signing-service/model"
+
 type DeviceStorage interface {
-	Save(device *SignatureDevice) error
-	Update(device *SignatureDevice) error
-	GetDevice(id string) (*SignatureDevice, error)
-	GetAllDevices() ([]*SignatureDevice, error)
+	Save(device *model.SignatureDevice) error
+	Update(device *model.SignatureDevice) error
+	GetDevice(id string) (*model.SignatureDevice, error)
+	GetAllDevices() ([]*model.SignatureDevice, error)
 }

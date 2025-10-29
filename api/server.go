@@ -2,7 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+
+	"github.com/bayuhutajulu/signing-service/domain"
+	"github.com/gorilla/mux"
 )
 
 // Response is the generic API response container.
@@ -17,30 +21,35 @@ type ErrorResponse struct {
 
 // Server manages HTTP requests and dispatches them to the appropriate services.
 type Server struct {
-	listenAddress string
+	listenAddress     string
+	signDeviceService domain.ISignatureDeviceService
 }
 
 // NewServer is a factory to instantiate a new Server.
-func NewServer(listenAddress string) *Server {
+func NewServer(listenAddress string, signDeviceService *domain.SignatureDeviceService) *Server {
 	return &Server{
-		listenAddress: listenAddress,
-		// TODO: add services / further dependencies here ...
+		listenAddress:     listenAddress,
+		signDeviceService: signDeviceService,
 	}
 }
 
 // Run registers all HandlerFuncs for the existing HTTP routes and starts the Server.
 func (s *Server) Run() error {
-	mux := http.NewServeMux()
+	router := mux.NewRouter()
 
-	mux.Handle("/api/v0/health", http.HandlerFunc(s.Health))
+	router.HandleFunc("/api/v0/health", s.Health).Methods(http.MethodGet)
+	router.HandleFunc("/api/v0/devices", s.CreateDevice).Methods(http.MethodPost)
+	router.HandleFunc("/api/v0/devices", s.GetAllDevices).Methods(http.MethodGet)
+	router.HandleFunc("/api/v0/devices/{id}", s.GetDevice).Methods(http.MethodGet)
+	router.HandleFunc("/api/v0/devices/{id}/sign", s.SignData).Methods(http.MethodPost)
 
-	// TODO: register further HandlerFuncs here ...
-
-	return http.ListenAndServe(s.listenAddress, mux)
+	log.Printf("Server is starting on %s", s.listenAddress)
+	return http.ListenAndServe(s.listenAddress, router)
 }
 
 // WriteInternalError writes a default internal error message as an HTTP response.
 func WriteInternalError(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 }
@@ -48,6 +57,7 @@ func WriteInternalError(w http.ResponseWriter) {
 // WriteErrorResponse takes an HTTP status code and a slice of errors
 // and writes those as an HTTP error response in a structured format.
 func WriteErrorResponse(w http.ResponseWriter, code int, errors []string) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 
 	errorResponse := ErrorResponse{
@@ -57,6 +67,7 @@ func WriteErrorResponse(w http.ResponseWriter, code int, errors []string) {
 	bytes, err := json.Marshal(errorResponse)
 	if err != nil {
 		WriteInternalError(w)
+		return
 	}
 
 	w.Write(bytes)
@@ -65,6 +76,7 @@ func WriteErrorResponse(w http.ResponseWriter, code int, errors []string) {
 // WriteAPIResponse takes an HTTP status code and a generic data struct
 // and writes those as an HTTP response in a structured format.
 func WriteAPIResponse(w http.ResponseWriter, code int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 
 	response := Response{
@@ -74,6 +86,7 @@ func WriteAPIResponse(w http.ResponseWriter, code int, data interface{}) {
 	bytes, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
 		WriteInternalError(w)
+		return
 	}
 
 	w.Write(bytes)

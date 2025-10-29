@@ -4,24 +4,26 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	model "github.com/bayuhutajulu/signing-service/model"
 )
 
 type mockStorage struct {
-	mu      sync.RWMutex
-	devices map[string]*SignatureDevice
-	saveErr error
+	mu        sync.RWMutex
+	devices   map[string]*model.SignatureDevice
+	saveErr   error
 	updateErr error
-	getErr error
+	getErr    error
 	getAllErr error
 }
 
 func newMockStorage() *mockStorage {
 	return &mockStorage{
-		devices: make(map[string]*SignatureDevice),
+		devices: make(map[string]*model.SignatureDevice),
 	}
 }
 
-func (m *mockStorage) Save(device *SignatureDevice) error {
+func (m *mockStorage) Save(device *model.SignatureDevice) error {
 	if m.saveErr != nil {
 		return m.saveErr
 	}
@@ -31,7 +33,7 @@ func (m *mockStorage) Save(device *SignatureDevice) error {
 	return nil
 }
 
-func (m *mockStorage) Update(device *SignatureDevice) error {
+func (m *mockStorage) Update(device *model.SignatureDevice) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
@@ -44,7 +46,7 @@ func (m *mockStorage) Update(device *SignatureDevice) error {
 	return nil
 }
 
-func (m *mockStorage) GetDevice(id string) (*SignatureDevice, error) {
+func (m *mockStorage) GetDevice(id string) (*model.SignatureDevice, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -57,13 +59,13 @@ func (m *mockStorage) GetDevice(id string) (*SignatureDevice, error) {
 	return device, nil
 }
 
-func (m *mockStorage) GetAllDevices() ([]*SignatureDevice, error) {
+func (m *mockStorage) GetAllDevices() ([]*model.SignatureDevice, error) {
 	if m.getAllErr != nil {
 		return nil, m.getAllErr
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	devices := make([]*SignatureDevice, 0, len(m.devices))
+	devices := make([]*model.SignatureDevice, 0, len(m.devices))
 	for _, device := range m.devices {
 		devices = append(devices, device)
 	}
@@ -75,7 +77,7 @@ func TestCreateDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "device-rsa-001",
 			Label:     "RSA Test Device",
 			Algorithm: "RSA",
@@ -119,7 +121,7 @@ func TestCreateDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "device-ecc-001",
 			Label:     "ECC Test Device",
 			Algorithm: "ECC",
@@ -145,7 +147,7 @@ func TestCreateDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "device-invalid-001",
 			Label:     "Invalid Device",
 			Algorithm: "INVALID",
@@ -165,7 +167,7 @@ func TestCreateDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "device-empty-001",
 			Label:     "Empty Algorithm Device",
 			Algorithm: "",
@@ -186,7 +188,7 @@ func TestCreateDevice(t *testing.T) {
 		storage.saveErr = fmt.Errorf("storage error")
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "device-error-001",
 			Label:     "Error Device",
 			Algorithm: "RSA",
@@ -206,7 +208,7 @@ func TestCreateDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "",
 			Label:     "Empty ID Device",
 			Algorithm: "RSA",
@@ -229,7 +231,7 @@ func TestCreateDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		opts := CreateDeviceOptions{
+		opts := model.CreateDeviceOptions{
 			ID:        "device-empty-label-001",
 			Label:     "",
 			Algorithm: "ECC",
@@ -254,13 +256,16 @@ func TestSignData(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		device, _ := service.CreateDevice(CreateDeviceOptions{
+		device, _ := service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-sign-001",
 			Label:     "Sign Test",
 			Algorithm: "RSA",
 		})
 
-		resp, err := service.SignData(device.ID, "test-data")
+		resp, err := service.SignData(model.SignDataOptions{
+			DeviceID: device.ID,
+			Data:     "test-data",
+		})
 
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -288,14 +293,17 @@ func TestSignData(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		device, _ := service.CreateDevice(CreateDeviceOptions{
+		device, _ := service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-counter-001",
 			Label:     "Counter Test",
 			Algorithm: "RSA",
 		})
 
 		for i := 1; i <= 5; i++ {
-			resp, err := service.SignData(device.ID, fmt.Sprintf("data-%d", i))
+			resp, err := service.SignData(model.SignDataOptions{
+				DeviceID: device.ID,
+				Data:     fmt.Sprintf("data-%d", i),
+			})
 			if err != nil {
 				t.Fatalf("iteration %d: expected no error, got %v", i, err)
 			}
@@ -314,7 +322,10 @@ func TestSignData(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		resp, err := service.SignData("non-existent-device", "test-data")
+		resp, err := service.SignData(model.SignDataOptions{
+			DeviceID: "non-existent-device",
+			Data:     "test-data",
+		})
 
 		if err == nil {
 			t.Fatal("expected error for non-existent device, got nil")
@@ -329,7 +340,10 @@ func TestSignData(t *testing.T) {
 		storage.getErr = fmt.Errorf("storage get error")
 		service := NewSignatureDeviceService(storage)
 
-		resp, err := service.SignData("device-001", "test-data")
+		resp, err := service.SignData(model.SignDataOptions{
+			DeviceID: "device-001",
+			Data:     "test-data",
+		})
 
 		if err == nil {
 			t.Fatal("expected error from storage, got nil")
@@ -343,7 +357,7 @@ func TestSignData(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		device, _ := service.CreateDevice(CreateDeviceOptions{
+		device, _ := service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-update-error-001",
 			Label:     "Update Error Test",
 			Algorithm: "RSA",
@@ -351,7 +365,10 @@ func TestSignData(t *testing.T) {
 
 		storage.updateErr = fmt.Errorf("update error")
 
-		resp, err := service.SignData(device.ID, "test-data")
+		resp, err := service.SignData(model.SignDataOptions{
+			DeviceID: device.ID,
+			Data:     "test-data",
+		})
 
 		if err == nil {
 			t.Fatal("expected error from storage update, got nil")
@@ -365,14 +382,17 @@ func TestSignData(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		device, _ := service.CreateDevice(CreateDeviceOptions{
+		device, _ := service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-format-001",
 			Label:     "Format Test",
 			Algorithm: "RSA",
 		})
 
 		data := "transaction-data"
-		resp, err := service.SignData(device.ID, data)
+		resp, err := service.SignData(model.SignDataOptions{
+			DeviceID: device.ID,
+			Data:     data,
+		})
 
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -393,7 +413,7 @@ func TestGetDevice(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		created, _ := service.CreateDevice(CreateDeviceOptions{
+		created, _ := service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-get-001",
 			Label:     "Get Test",
 			Algorithm: "RSA",
@@ -447,12 +467,12 @@ func TestGetAllDevices(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		service.CreateDevice(CreateDeviceOptions{
+		service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-all-001",
 			Label:     "Device 1",
 			Algorithm: "RSA",
 		})
-		service.CreateDevice(CreateDeviceOptions{
+		service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-all-002",
 			Label:     "Device 2",
 			Algorithm: "ECC",
@@ -503,7 +523,7 @@ func TestConcurrentSignData(t *testing.T) {
 		storage := newMockStorage()
 		service := NewSignatureDeviceService(storage)
 
-		device, _ := service.CreateDevice(CreateDeviceOptions{
+		device, _ := service.CreateDevice(model.CreateDeviceOptions{
 			ID:        "device-concurrent-001",
 			Label:     "Concurrent Test",
 			Algorithm: "RSA",
@@ -517,7 +537,10 @@ func TestConcurrentSignData(t *testing.T) {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
-				_, err := service.SignData(device.ID, fmt.Sprintf("data-%d", index))
+				_, err := service.SignData(model.SignDataOptions{
+					DeviceID: device.ID,
+					Data:     fmt.Sprintf("data-%d", index),
+				})
 				if err != nil {
 					errorsChan <- err
 				}
